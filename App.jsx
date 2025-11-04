@@ -20,43 +20,86 @@ export default function App() {
 
   const watermarkText = 'IMG.LY';
   const watermarkImage = {
-    uri: 'https://via.placeholder.com/300x200.png?text=Dummy+Image',
+    uri: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
   };
   const videoUri = 'https://www.w3schools.com/html/mov_bbb.mp4';
 
   const uploadToCloudinary = async (fileUri, resourceType = 'video') => {
     try {
+      const isRemoteUrl = fileUri.startsWith('http');
+
+      // Validate URL format
+      if (isRemoteUrl) {
+        try {
+          new URL(fileUri);
+        } catch (e) {
+          throw new Error(`Invalid URL format: ${fileUri}`);
+        }
+      }
+
       const data = new FormData();
-      data.append('file', {
-        uri: fileUri,
-        type: resourceType === 'video' ? 'video/mp4' : 'image/png',
-        name: resourceType === 'video' ? 'video.mp4' : 'image.png',
-      });
+
+      if (resourceType === 'image' && isRemoteUrl) {
+        // For remote images, we need to encode the URL
+        data.append('file', encodeURI(fileUri));
+      } else {
+        data.append(
+          'file',
+          isRemoteUrl
+            ? fileUri
+            : {
+                uri: fileUri,
+                type: resourceType === 'video' ? 'video/mp4' : 'image/png',
+                name: resourceType === 'video' ? 'video.mp4' : 'image.png',
+              },
+        );
+      } // Added missing closing brace
+
       data.append('upload_preset', UPLOAD_PRESET);
 
       const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`;
-      console.log('Attempting upload to:', url);
+      console.log(`Uploading ${resourceType} from:`, fileUri);
 
-      const res = await fetch(url, {
-        method: 'POST',
-        body: data,
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      // Add timeout and better error handling for fetch
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-      const json = await res.json();
-      console.log('Upload response:', json);
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          body: data,
+          headers: {
+            Accept: 'application/json',
+          },
+          signal: controller.signal,
+        });
 
-      if (!res.ok || !json.secure_url) {
-        throw new Error(json.error?.message || 'Upload failed');
+        clearTimeout(timeoutId);
+
+        const json = await res.json();
+
+        if (!res.ok) {
+          console.error(`Upload failed for ${resourceType}:`, json);
+          throw new Error(
+            json.error?.message || `HTTP error! status: ${res.status}`,
+          );
+        }
+
+        if (!json.secure_url) {
+          throw new Error('Upload succeeded but no secure URL returned');
+        }
+
+        console.log(`${resourceType} upload successful:`, json.secure_url);
+        return json;
+      } catch (fetchError) {
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Upload timed out');
+        }
+        throw fetchError;
       }
-
-      return json;
     } catch (error) {
-      console.error('Upload error:', error);
-      throw error;
+      console.error(`Upload error for ${resourceType}:`, error);
+      throw new Error(`Failed to upload ${resourceType}: ${error.message}`);
     }
   };
 
