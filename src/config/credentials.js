@@ -1,13 +1,15 @@
 import {Platform} from 'react-native';
 import RNFS from 'react-native-fs';
-let Config = {}; // fallback if module not installed
+import Config from 'react-native-config';
+
+//let Config = {}; // fallback if module not installed
 
 // Safely import react-native-config (wrapped in try/catch)
-try {
-  Config = require('react-native-config').default || require('react-native-config');
-} catch (e) {
-  console.log('react-native-config not installed, using .env fallback');
-}
+// try {
+//   Config = require('react-native-config').default || require('react-native-config');
+// } catch (e) {
+//   console.log('react-native-config not installed, using .env fallback');
+// }
 
 // Helper to parse key=value lines
 const parseEnv = content => {
@@ -25,6 +27,7 @@ const parseEnv = content => {
 };
 
 export const loadEnv = async () => {
+  console.log('Loading .env configuration', Config.CLOUD_NAME, Config.UPLOAD_PRESET);
   // First try environment variables from react-native-config
   if (Config && (Config.CLOUD_NAME || Config.UPLOAD_PRESET)) {
     return {
