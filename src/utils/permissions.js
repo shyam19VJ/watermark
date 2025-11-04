@@ -1,58 +1,44 @@
-import {Platform, PermissionsAndroid, Alert, Linking} from 'react-native';
+import {PermissionsAndroid, Platform} from 'react-native';
 
 export const requestStoragePermission = async () => {
   if (Platform.OS !== 'android') {
-    return true;
+    return true; // iOS doesn’t need it
   }
 
-  const permissions = [
-    PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-    PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE, // fallback for older versions
-  ];
+  try {
+    // Android 13+ (API 33+) uses new permissions
+    if (Platform.Version >= 33) {
+      const granted = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
+        PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
+      ]);
 
-  if (Platform.Version >= 33) {
-    // Android 13+ requires explicit media permissions
-    permissions.push(
-      PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
-      PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
-    );
-  }
+      const videoGranted =
+        granted[PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO] ===
+        PermissionsAndroid.RESULTS.GRANTED;
+      const imageGranted =
+        granted[PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES] ===
+        PermissionsAndroid.RESULTS.GRANTED;
 
-  // Check which permissions are missing
-  const missing = [];
-  for (const perm of permissions) {
-    const hasPerm = await PermissionsAndroid.check(perm);
-    if (!hasPerm) {
-      missing.push(perm);
+      return videoGranted && imageGranted;
     }
-  }
 
-  if (missing.length === 0) {
-    return true;
-  }
-
-  // Request only missing permissions
-  const statuses = await PermissionsAndroid.requestMultiple(missing);
-
-  // Check if any are permanently denied
-  const blocked = Object.values(statuses).some(
-    status => status === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN,
-  );
-  if (blocked) {
-    Alert.alert(
-      'Storage Permission Required',
-      'Please enable storage permission in app settings',
-      [
-        {text: 'Cancel', style: 'cancel'},
-        {text: 'Open Settings', onPress: () => Linking.openSettings()},
-      ],
+    // Android 10–12 (API 29–32)
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+      {
+        title: 'Storage Permission',
+        message:
+          'App needs access to your storage to download and save videos.',
+        buttonNeutral: 'Ask Me Later',
+        buttonNegative: 'Cancel',
+        buttonPositive: 'OK',
+      },
     );
+
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  } catch (err) {
+    console.warn('Permission error:', err);
     return false;
   }
-
-  // Check if any are denied
-  const denied = Object.values(statuses).some(
-    status => status === PermissionsAndroid.RESULTS.DENIED,
-  );
-  return !denied;
 };

@@ -46,72 +46,145 @@ export default function App() {
     return json;
   };
 
+  // const handleDownload = async () => {
+  //   try {
+  //     // Request storage permission for Android 13+ / legacy versions
+  //     const hasPermission = await requestStoragePermission();
+  //     console.log('hasPermission', hasPermission);
+
+  //     if (!hasPermission) {
+  //       return;
+  //     }
+
+  //     // load credentials from .env (or react-native-config if available)
+  //     const {CLOUD_NAME, UPLOAD_PRESET} = await loadEnv();
+  //     if (!CLOUD_NAME || !UPLOAD_PRESET) {
+  //       Alert.alert(
+  //         'Missing Credentials',
+  //         'Cloudinary credentials not found. Please add them to .env or configure react-native-config.',
+  //       );
+  //       return;
+  //     }
+
+  //     setDownloading(true);
+  //     Alert.alert('⏳ Uploading & Processing..');
+
+  //     // Upload video & watermark image
+  //     const videoData = await uploadToCloudinary(
+  //       videoUri,
+  //       'video',
+  //       CLOUD_NAME,
+  //       UPLOAD_PRESET,
+  //     );
+  //     const imageData = await uploadToCloudinary(
+  //       watermarkImage.uri,
+  //       'image',
+  //       CLOUD_NAME,
+  //       UPLOAD_PRESET,
+  //     );
+
+  //     // Apply watermark transformations
+  //     const transformedUrl = videoData.secure_url.replace(
+  //       '/upload/',
+  //       `/upload/l_text:Arial_40_bold:${encodeURIComponent(
+  //         watermarkText,
+  //       )},co_rgb:FFFFFF,g_south_east,x_10,y_80/l_${
+  //         imageData.public_id
+  //       },w_0.2,g_north_west,x_10,y_10/`,
+  //     );
+
+  //     // Download file to device
+  //     const path = RNFS.DownloadDirectoryPath + '/final_watermarked.mp4';
+  //     const res = await RNFS.downloadFile({
+  //       fromUrl: transformedUrl,
+  //       toFile: path,
+  //     }).promise;
+
+  //     setDownloading(false);
+
+  //     if (res.statusCode === 200) {
+  //       Alert.alert('✅ Success', `Downloaded to: ${path}`);
+  //     } else {
+  //       Alert.alert('❌ Failed', 'Could not download video');
+  //     }
+  //   } catch (err) {
+  //     setDownloading(false);
+  //     Alert.alert('Error', err.message);
+  //   }
+  // };
+
   const handleDownload = async () => {
-    try {
-      // Request storage permission for Android 13+ / legacy versions
-      const hasPermission = await requestStoragePermission();
-      console.log('hasPermission', hasPermission);
+  try {
+    const hasPermission = await requestStoragePermission();
+    console.log('Storage permission:', hasPermission);
 
-      if (!hasPermission) {
-        return;
-      }
-
-      // load credentials from .env (or react-native-config if available)
-      const {CLOUD_NAME, UPLOAD_PRESET} = await loadEnv();
-      if (!CLOUD_NAME || !UPLOAD_PRESET) {
-        Alert.alert(
-          'Missing Credentials',
-          'Cloudinary credentials not found. Please add them to .env or configure react-native-config.',
-        );
-        return;
-      }
-
-      setDownloading(true);
-      Alert.alert('⏳ Uploading & Processing..');
-
-      // Upload video & watermark image
-      const videoData = await uploadToCloudinary(
-        videoUri,
-        'video',
-        CLOUD_NAME,
-        UPLOAD_PRESET,
+    if (!hasPermission) {
+      Alert.alert(
+        'Permission Denied',
+        'Storage access is required to save videos. Please enable it from Settings > Apps > YourApp > Permissions.'
       );
-      const imageData = await uploadToCloudinary(
-        watermarkImage.uri,
-        'image',
-        CLOUD_NAME,
-        UPLOAD_PRESET,
-      );
-
-      // Apply watermark transformations
-      const transformedUrl = videoData.secure_url.replace(
-        '/upload/',
-        `/upload/l_text:Arial_40_bold:${encodeURIComponent(
-          watermarkText,
-        )},co_rgb:FFFFFF,g_south_east,x_10,y_80/l_${
-          imageData.public_id
-        },w_0.2,g_north_west,x_10,y_10/`,
-      );
-
-      // Download file to device
-      const path = RNFS.DownloadDirectoryPath + '/final_watermarked.mp4';
-      const res = await RNFS.downloadFile({
-        fromUrl: transformedUrl,
-        toFile: path,
-      }).promise;
-
-      setDownloading(false);
-
-      if (res.statusCode === 200) {
-        Alert.alert('✅ Success', `Downloaded to: ${path}`);
-      } else {
-        Alert.alert('❌ Failed', 'Could not download video');
-      }
-    } catch (err) {
-      setDownloading(false);
-      Alert.alert('Error', err.message);
+      return;
     }
-  };
+
+    const {CLOUD_NAME, UPLOAD_PRESET} = await loadEnv();
+    if (!CLOUD_NAME || !UPLOAD_PRESET) {
+      Alert.alert(
+        'Missing Credentials',
+        'Cloudinary credentials not found. Please add them to .env or configure react-native-config.',
+      );
+      return;
+    }
+
+    setDownloading(true);
+    Alert.alert('⏳ Uploading & Processing..');
+
+    const videoData = await uploadToCloudinary(
+      videoUri,
+      'video',
+      CLOUD_NAME,
+      UPLOAD_PRESET,
+    );
+    const imageData = await uploadToCloudinary(
+      watermarkImage.uri,
+      'image',
+      CLOUD_NAME,
+      UPLOAD_PRESET,
+    );
+
+    const transformedUrl = videoData.secure_url.replace(
+      '/upload/',
+      `/upload/l_text:Arial_40_bold:${encodeURIComponent(
+        watermarkText,
+      )},co_rgb:FFFFFF,g_south_east,x_10,y_80/l_${
+        imageData.public_id
+      },w_0.2,g_north_west,x_10,y_10/`,
+    );
+
+    // choose correct path per platform
+    const path =
+      Platform.OS === 'android'
+        ? `${RNFS.DownloadDirectoryPath}/final_watermarked.mp4`
+        : `${RNFS.DocumentDirectoryPath}/final_watermarked.mp4`;
+
+    console.log('Downloading to:', path);
+    const res = await RNFS.downloadFile({
+      fromUrl: transformedUrl,
+      toFile: path,
+    }).promise;
+
+    setDownloading(false);
+
+    if (res.statusCode === 200) {
+      Alert.alert('✅ Success', `Video saved to:\n${path}`);
+    } else {
+      Alert.alert('❌ Failed', 'Could not download video');
+    }
+  } catch (err) {
+    setDownloading(false);
+    console.error('Download error:', err);
+    Alert.alert('Error', err.message || 'Something went wrong.');
+  }
+};
 
   return (
     <View style={styles.container}>

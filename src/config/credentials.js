@@ -1,17 +1,22 @@
-import {Platform, Linking} from 'react-native';
+import {Platform} from 'react-native';
 import RNFS from 'react-native-fs';
+let Config = {}; // fallback if module not installed
 
+// Safely import react-native-config (wrapped in try/catch)
+try {
+  Config = require('react-native-config').default || require('react-native-config');
+} catch (e) {
+  console.log('react-native-config not installed, using .env fallback');
+}
+
+// Helper to parse key=value lines
 const parseEnv = content => {
   const result = {};
   content.split(/\r?\n/).forEach(line => {
     const l = line.trim();
-    if (!l || l.startsWith('#')) {
-      return;
-    }
+    if (!l || l.startsWith('#')) return;
     const idx = l.indexOf('=');
-    if (idx === -1) {
-      return;
-    }
+    if (idx === -1) return;
     const key = l.slice(0, idx).trim();
     const val = l.slice(idx + 1).trim();
     result[key] = val;
@@ -20,30 +25,26 @@ const parseEnv = content => {
 };
 
 export const loadEnv = async () => {
-  // Try react-native-config first (if installed)
-  try {
-    const RNConfig = require('react-native-config');
-    if (RNConfig && (RNConfig.CLOUD_NAME || RNConfig.UPLOAD_PRESET)) {
-      return {
-        CLOUD_NAME: RNConfig.CLOUD_NAME,
-        UPLOAD_PRESET: RNConfig.UPLOAD_PRESET,
-      };
-    }
-  } catch (e) {
-    // react-native-config not present — fall through to bundle read
+  // First try environment variables from react-native-config
+  if (Config && (Config.CLOUD_NAME || Config.UPLOAD_PRESET)) {
+    return {
+      CLOUD_NAME: Config.CLOUD_NAME,
+      UPLOAD_PRESET: Config.UPLOAD_PRESET,
+    };
   }
 
+  // Fallback to reading .env manually
   try {
     let content = '';
     if (Platform.OS === 'android' && RNFS.readFileAssets) {
-      // read bundled asset named ".env" (place .env in android/app/src/main/assets or root assets)
+      // Read from android/app/src/main/assets/.env
       content = await RNFS.readFileAssets('.env', 'utf8');
     } else if (Platform.OS === 'ios' && RNFS.MainBundlePath) {
-      // On iOS, .env should be included in the app bundle (add to Xcode resources)
+      // Read from bundled iOS resource
       const path = `${RNFS.MainBundlePath}/.env`;
       content = await RNFS.readFile(path, 'utf8');
     } else {
-      // As a last resort attempt to read from DocumentDirectoryPath (useful during dev)
+      // Fallback for dev builds
       const path = `${RNFS.DocumentDirectoryPath}/.env`;
       content = await RNFS.readFile(path, 'utf8');
     }
